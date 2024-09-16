@@ -1,13 +1,13 @@
 import requests
 import os
 import subprocess
-import shutil
 import pandas as pd
+
 
 def fetch_top_java_repositories():
     url = 'https://api.github.com/graphql'
-    
-    token = ''
+
+    token = 'AUTH'
     query = """
     {
       search(query: "language:Java stars:>1 fork:false sort:stars-desc", type: REPOSITORY, first: 1, after: null) {
@@ -38,17 +38,18 @@ def fetch_top_java_repositories():
         if not data.get('pageInfo', {}).get('hasNextPage'):
             break
 
-        query = query.replace(
-            f'after: null', f'after: "{data["pageInfo"]["endCursor"]}"'
-        )
+        if data["pageInfo"]["endCursor"]:
+            query = query.replace('after: null', f'after: "{data["pageInfo"]["endCursor"]}"')
 
     return repositories[:1]
+
 
 def clone_repository(url, target_dir):
     try:
         subprocess.run(['git', 'clone', url, target_dir], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error cloning repository: {e}")
+
 
 def clone_repositories_and_run_ck(repositories, target_dir, results_dir, ck_dir):
     for repo in repositories:
@@ -59,17 +60,19 @@ def clone_repositories_and_run_ck(repositories, target_dir, results_dir, ck_dir)
         clone_repository(url, directory)
         run_ck_analysis(directory, results_dir, ck_dir, name)
 
+
 def run_ck_analysis(repo_path, results_dir, ck_dir, repo_name):
     try:
         print(f"Running CK analysis on {repo_path}...")
         ck_results = os.path.join(results_dir, repo_name)
-        ck_command = f'java -jar {ck_dir} {repo_path} true 0 false {ck_results}'
+        ck_command = ['java', '-jar', ck_dir, repo_path, 'true', '0', 'false', ck_results]
         if not os.path.exists(ck_results):
             os.makedirs(ck_results)
-        subprocess.run(ck_command, shell=True)
+        subprocess.run(ck_command)
         print(f"CK analysis completed for {repo_path}")
     except Exception as e:
         print(f"Error occurred during CK analysis for {repo_path}: {e}")
+
 
 def append_to_excel(results_dir, excel_path):
     excel_data = pd.DataFrame()
@@ -77,19 +80,21 @@ def append_to_excel(results_dir, excel_path):
         for file in files:
             if file.endswith('.csv'):
                 df = pd.read_csv(os.path.join(root, file))
-                excel_data = excel_data.append(df, ignore_index=True)
+                excel_data = pd.concat([excel_data, df], ignore_index=True)
 
     if os.path.exists(excel_path):
         with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
-            excel_data.to_excel(writer, index=False, header=False, sheet_name='Metrics') 
+            excel_data.to_excel(writer, index=False, header=False, sheet_name='Metrics')
     else:
-        excel_data.to_excel(excel_path, index=False, sheet_name='Metrics') 
+        excel_data.to_excel(excel_path, index=False, sheet_name='Metrics')
+
+
 def main():
     repositories = fetch_top_java_repositories()
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    current_dir = os.getcwd()  # Use os.getcwd() instead of __file__
     repositories_dir = os.path.join(current_dir, 'repositories')
     results_dir = os.path.join(current_dir, "results")
-    ck_path = os.path.join(current_dir, "scripts", "ck_script", "target","ck-0.7.1-SNAPSHOT-jar-with-dependencies.jar")
+    ck_path = os.path.join(current_dir, "scripts", "ck_script", "target", "ck-0.7.1-SNAPSHOT-jar-with-dependencies.jar")
     excel_path = os.path.join(current_dir, "metrics.xlsx")
 
     if not os.path.exists(repositories_dir):
@@ -98,6 +103,7 @@ def main():
         os.makedirs(results_dir)
     clone_repositories_and_run_ck(repositories, repositories_dir, results_dir, ck_path)
     append_to_excel(results_dir, excel_path)
+
 
 if __name__ == "__main__":
     main()
