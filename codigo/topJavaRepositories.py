@@ -1,16 +1,20 @@
 import requests
+import errno
 import os
 import subprocess
 import pandas as pd
+import shutil
+import stat
 
 
 def fetch_top_java_repositories():
     url = 'https://api.github.com/graphql'
 
-    token = 'AUTH'
+    #COLOQUE O TOKEN AQUI EMBAIXO
+    token = 'TOKEN AQUI'
     query = """
     {
-      search(query: "language:Java stars:>1 fork:false sort:stars-desc", type: REPOSITORY, first: 1, after: null) {
+      search(query: "language:Java stars:>1 fork:false sort:stars-desc", type: REPOSITORY, first: 1000) {
         repositoryCount
         pageInfo {
           endCursor
@@ -30,7 +34,7 @@ def fetch_top_java_repositories():
     headers = {'Authorization': f'Bearer {token}'}
     repositories = []
 
-    while len(repositories) < 1:
+    while len(repositories) < 1001:
         response = requests.post(url, json={'query': query}, headers=headers)
         data = response.json().get('data', {}).get('search', {})
 
@@ -41,7 +45,7 @@ def fetch_top_java_repositories():
         if data["pageInfo"]["endCursor"]:
             query = query.replace('after: null', f'after: "{data["pageInfo"]["endCursor"]}"')
 
-    return repositories[:1]
+    return repositories
 
 
 def clone_repository(url, target_dir):
@@ -60,6 +64,26 @@ def clone_repositories_and_run_ck(repositories, target_dir, results_dir, ck_dir)
         clone_repository(url, directory)
         run_ck_analysis(directory, results_dir, ck_dir, name)
 
+        try:
+            delete_repository_directory(directory)
+            print(f"Repositório {name} removido com sucesso.")
+        except Exception as e:
+            print(f"Erro ao remover o repositório {name}: {e}")
+
+def delete_repository_directory(directory):
+    try:
+        shutil.rmtree(directory, onerror=handle_remove_readonly)
+        print(f"Deleted repository directory: {directory}")
+    except Exception as e:
+        print(f"Error deleting repository directory {directory}: {e}")
+
+def handle_remove_readonly(func, path, exc):
+    excvalue = exc[1]
+    if func in (os.rmdir, os.remove, os.unlink) and excvalue.errno == errno.EACCES:
+        os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        func(path)
+    else:
+        raise
 
 def run_ck_analysis(repo_path, results_dir, ck_dir, repo_name):
     try:
@@ -72,7 +96,6 @@ def run_ck_analysis(repo_path, results_dir, ck_dir, repo_name):
         print(f"CK analysis completed for {repo_path}")
     except Exception as e:
         print(f"Error occurred during CK analysis for {repo_path}: {e}")
-
 
 def append_to_excel(results_dir, excel_path):
     excel_data = pd.DataFrame()

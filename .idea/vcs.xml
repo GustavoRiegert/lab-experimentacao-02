@@ -2,7 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/codigo/repositories/GitHub-Chinese-Top-Charts" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/codigo/repositories/JavaGuide" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/codigo/repositories/hello-algo" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/codigo/scripts/ck_script" vcs="Git" />
   </component>
 </project>
